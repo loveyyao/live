@@ -1,28 +1,41 @@
 <template>
   <div id="app">
-    <img alt="Vue logo" src="./assets/logo.png">
-    <HelloWorld msg="Welcome to Your Vue.js App"/>
+    <live2d
+      :style="style"
+      :model="[1, 53]"
+      :direction="direction"
+      :size="size"
+    />
   </div>
 </template>
 
 <script>
-import HelloWorld from './components/HelloWorld.vue'
+import live2d from './components/vue-live2d/index'
 
 export default {
   name: 'App',
   components: {
-    HelloWorld
+    live2d
+  },
+  data () {
+    return {
+      direction: 'right',
+      style: 'position: fixed; top: 50%; left: 50%;transform: translate(-50%, -50%)',
+      size: 200,
+      tips: {
+        mouseover: [{
+          selector: '.vue-live2d',
+          texts: ['这样可以修改默认语句']
+        }]
+      }
+    }
   }
 }
 </script>
 
 <style>
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 60px;
+  width: 100%;
+  height: 100%;
 }
 </style>
