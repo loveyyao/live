@@ -5,14 +5,14 @@
 npm install
 ```
 
-### Compiles and hot-reloads for development
+### 本地运行
 ```
-npm run serve
+npm run electron:serve
 ```
 
-### Compiles and minifies for production
+### 打包成exe安装文件
 ```
-npm run build
+npm run electron:build
 ```
 
 ### Lints and fixes files
