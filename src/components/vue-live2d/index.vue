@@ -7,7 +7,8 @@
     @mouseout="toolShow = false">
     <div v-show="mainShow">
       <div class="vue-live2d-tip" v-html="tipText" v-show="tipShow"></div>
-      <canvas :id="live2dMainId" ref="vue-live2d-main" :width="live2dWidth" :height="live2dHeight" class="vue-live2d-main"></canvas>
+      <canvas :id="live2dMainId" ref="vue-live2d-main" :width="live2dWidth" :height="live2dHeight"
+              class="vue-live2d-main"></canvas>
       <div
         class="vue-live2d-tool"
         ref="vue-live2d-tool"
@@ -17,466 +18,502 @@
           v-for="(tool, index) in tools"
           :key="index"
           :class="tool.name"
-          @click="tool.click"/>
+          @click="tool.click"
+        />
       </div>
-    </div>
-    <div class="vue-live2d-toggle" ref="vue-live2d-toggle" v-show="!mainShow" @click="mainShow = true">
-      <span>看板娘</span>
     </div>
   </div>
 </template>
 
 <script>
-import axios from 'axios'
-import './lib/live2d.min.js'
-import 'font-awesome/css/font-awesome.min.css'
+  import axios from 'axios'
+  import './lib/live2d.min.js'
+  import 'font-awesome/css/font-awesome.min.css'
+  import { ipcRenderer } from 'electron'
+  import tips from './options/tips'
 
-import tips from './options/tips'
-
-export default {
-  name: 'vue-live2d',
-  props: {
-    direction: {
-      default: 'right',
-      type: String
-    },
-    customId: {
-      default: '',
-      type: String
-    },
-    apiPath: {
-      default: 'https://live2d.fghrsh.net/api',
-      type: String
-    },
-    model: {
-      default: () => [1, 53],
-      type: Array
-    },
-    homePage: {
-      default: 'https://github.com/evgo2017/vue-live2d',
-      type: String
-    },
-    tips: {
-      default: () => tips,
-      type: Object
-    },
-    width: {
-      default: 0,
-      type: Number
-    },
-    height: {
-      default: 0,
-      type: Number
-    },
-    size: {
-      default: 255,
-      type: Number
-    }
-  },
-  data () {
-    return {
-      messageTimer: null,
-      mainShow: true,
-      tipText: '',
-      tipShow: false,
-      toolShow: false,
-      modelId: 1,
-      modelTexturesId: 53,
-      tools: [{
-        name: 'fa-comment',
-        click: this.showHitokoto
-      }, {
-        name: 'fa-user-circle',
-        click: this.loadRandModel
-      }, {
-        name: 'fa-street-view',
-        click: this.loadRandTextures
-      }, {
-        name: 'fa-camera-retro',
-        click: this.takePhoto
-      }, {
-        name: 'fa-info-circle',
-        click: this.openHomePage
-      }, {
-        name: 'fa-times',
-        click: this.close
-      }]
-    }
-  },
-  mounted () {
-    this.modelId = this.model[0]
-    this.modelTexturesId = this.model[1]
-    this.loadModel()
-    this.setDirection()
-    this.$nextTick(function () {
-      this.loadEvent()
-    })
-  },
-  computed: {
-    live2dMainId () {
-      const defaultId = 'vue-live2d-main'
-      const customId = this.customId
-      if (!customId) return defaultId
-      return customId
-    },
-    live2dWidth () {
-      return this.width ? this.width : this.size
-    },
-    live2dHeight () {
-      return this.height ? this.height : this.size
-    }
-  },
-  watch: {
-    mainShow () {
-      const containers = ['vue-live2d']
-      const refs = this.$refs
-      containers.forEach(containerName => {
-        refs[containerName].classList.toggle(`${containerName}-on-${this.direction}`)
-      })
-    },
-    direction () {
-      this.setDirection()
-    },
-    width () {
-      this.changeLive2dSize()
-    },
-    height () {
-      this.changeLive2dSize()
-    },
-    size () {
-      if (this.width || this.height) return
-      this.changeLive2dSize()
-    }
-  },
-  methods: {
-    changeLive2dSize () {
-      const { live2dMainId, live2dWidth: width, live2dHeight: height } = this
-      // 不知还有调整宽高的好方法没？
-      document.querySelector(`#${live2dMainId}`).outerHTML = `<canvas id=${live2dMainId} width="${width}" height="${height}" class="vue-live2d-main"></canvas>`
-      this.loadModel()
-    },
-    setDirection () {
-      const containers = ['vue-live2d', 'vue-live2d-tool', 'vue-live2d-toggle']
-      const refs = this.$refs
-      const addClassPostFix = this.direction
-      const removeClassPostFix = this.direction === 'left' ? 'right' : 'left'
-      containers.forEach(containerName => {
-        refs[containerName].classList.remove(`${containerName}-on-${removeClassPostFix}`)
-        refs[containerName].classList.add(`${containerName}-on-${addClassPostFix}`)
-      })
-    },
-    loadModel () {
-      const { apiPath, modelId, modelTexturesId, live2dMainId } = this
-      const url = `${apiPath}/get/?id=${modelId}-${modelTexturesId}`
-      window.loadlive2d(live2dMainId, url)
-      console.log(`Live2D 模型 ${modelId}-${modelTexturesId} 加载完成`)
-    },
-    loadRandModel () {
-      const url = `${this.apiPath}/rand/?id=${this.modelId}`
-      axios.get(url).then((res) => {
-        const { id, message } = res.data.model
-        this.modelId = id
-        this.showMessage(message, 4000)
-        this.loadRandTextures(true)
-      }).catch(function (err) {
-        console.log(err)
-      })
-    },
-    loadRandTextures (isAfterRandModel = false) {
-      const url = `${this.apiPath}/rand_textures/?id=${this.modelId}-${this.modelTexturesId}`
-      axios.get(url).then((res) => {
-        const { id } = res.data.textures
-        this.modelTexturesId = id
-        this.loadModel()
-        if (!isAfterRandModel) {
-          this.showMessage('我的新衣服好看嘛？', 4000)
-        }
-      }).catch(function (err) {
-        console.log(err)
-      })
-    },
-    showMessage (msg = '', timeout = 6000) {
-      if (this.messageTimer) {
-        clearTimeout(this.messageTimer)
-        this.messageTimer = null
-      } else {
-        this.tipShow = true
+  export default {
+    name: 'vue-live2d',
+    props: {
+      direction: {
+        default: 'right',
+        type: String
+      },
+      customId: {
+        default: '',
+        type: String
+      },
+      apiPath: {
+        default: 'https://live2d.fghrsh.net/api',
+        type: String
+      },
+      model: {
+        default: () => [1, 53],
+        type: Array
+      },
+      homePage: {
+        default: 'https://github.com/evgo2017/vue-live2d',
+        type: String
+      },
+      tips: {
+        default: () => tips,
+        type: Object
+      },
+      width: {
+        default: 0,
+        type: Number
+      },
+      height: {
+        default: 0,
+        type: Number
+      },
+      size: {
+        default: 255,
+        type: Number
       }
-      this.tipText = msg
-      this.messageTimer = setTimeout(() => {
-        this.tipShow = false
-        this.messageTimer = null
-      }, timeout)
     },
-    takePhoto () {
-      this.showMessage('照好了嘛，留个纪念吖~')
-      window.Live2D.captureName = 'photo.png'
-      window.Live2D.captureFrame = true
+    data() {
+      return {
+        messageTimer: null,
+        mainShow: true,
+        tipText: '',
+        tipShow: false,
+        toolShow: false,
+        modelId: 1,
+        modelTexturesId: 53,
+        tools: [
+          {
+            name: 'icon-reset',
+            click: this.reset
+          },
+          {
+            name: 'fa-comment',
+            click: this.showHitokoto
+          },
+          {
+            name: 'fa-user-circle',
+            click: this.loadRandModel
+          },
+          {
+            name: 'fa-street-view',
+            click: this.loadRandTextures
+          },
+          // {
+          //   name: 'fa-camera-retro',
+          //   click: this.takePhoto
+          // },
+          // {
+          //   name: 'fa-info-circle',
+          //   click: this.openHomePage
+          // },
+          {
+            name: 'fa-times',
+            click: this.close
+          }
+        ]
+      }
     },
-    showHitokoto () {
-      const url = 'https://v1.hitokoto.cn'
-      axios.get(url).then((res) => {
-        const { hitokoto, id, creator } = res.data
-        this.showMessage(`${hitokoto} <br> - by <a href="https://hitokoto.cn?id=${id}">${creator}</a> from 《${res.data.from} 》`)
-      }).catch(function (err) {
-        console.log(err)
+    mounted() {
+      this.modelId = this.model[0]
+      this.modelTexturesId = this.model[1]
+      this.loadModel()
+      this.setDirection()
+      this.$nextTick(function () {
+        this.loadEvent()
       })
     },
-    openHomePage () {
-      open(this.homePage)
+    computed: {
+      live2dMainId() {
+        const defaultId = 'vue-live2d-main'
+        const customId = this.customId
+        if (!customId) return defaultId
+        return customId
+      },
+      live2dWidth() {
+        return this.width ? this.width : this.size
+      },
+      live2dHeight() {
+        return this.height ? this.height : this.size
+      }
     },
-    close () {
-      this.mainShow = false
+    watch: {
+      mainShow() {
+        const containers = ['vue-live2d']
+        const refs = this.$refs
+        containers.forEach(containerName => {
+          refs[containerName] && refs[containerName].classList.toggle(`${containerName}-on-${this.direction}`)
+        })
+      },
+      direction() {
+        this.setDirection()
+      },
+      width() {
+        this.changeLive2dSize()
+      },
+      height() {
+        this.changeLive2dSize()
+      },
+      size() {
+        if (this.width || this.height) return
+        this.changeLive2dSize()
+      }
     },
-    loadEvent () {
-      for (const event in this.tips) {
-        for (const obj of this.tips[event]) {
-          const { selector, texts } = obj
-          const dom = selector === 'document' ? document : document.querySelector(selector)
-          if (dom == null) continue
+    methods: {
+      changeLive2dSize() {
+        const {live2dMainId, live2dWidth: width, live2dHeight: height} = this
+        // 不知还有调整宽高的好方法没？
+        document.querySelector(`#${live2dMainId}`).outerHTML = `<canvas id=${live2dMainId} width="${width}" height="${height}" class="vue-live2d-main"></canvas>`
+        this.loadModel()
+      },
+      setDirection() {
+        const containers = ['vue-live2d', 'vue-live2d-tool', 'vue-live2d-toggle']
+        const refs = this.$refs
+        const addClassPostFix = this.direction
+        const removeClassPostFix = this.direction === 'left' ? 'right' : 'left'
+        containers.forEach(containerName => {
+          refs[containerName] && refs[containerName].classList.remove(`${containerName}-on-${removeClassPostFix}`)
+          refs[containerName] && refs[containerName].classList.add(`${containerName}-on-${addClassPostFix}`)
+        })
+      },
+      loadModel() {
+        const {apiPath, modelId, modelTexturesId, live2dMainId} = this
+        const url = `${apiPath}/get/?id=${modelId}-${modelTexturesId}`
+        window.loadlive2d(live2dMainId, url)
+        console.log(`Live2D 模型 ${modelId}-${modelTexturesId} 加载完成`)
+      },
+      loadRandModel() {
+        const url = `${this.apiPath}/rand/?id=${this.modelId}`
+        axios.get(url).then((res) => {
+          const {id, message} = res.data.model
+          this.modelId = id
+          this.showMessage(message, 4000)
+          this.loadRandTextures(true)
+        }).catch(function (err) {
+          console.log(err)
+        })
+      },
+      loadRandTextures(isAfterRandModel = false) {
+        const url = `${this.apiPath}/rand_textures/?id=${this.modelId}-${this.modelTexturesId}`
+        axios.get(url).then((res) => {
+          const {id} = res.data.textures
+          this.modelTexturesId = id
+          this.loadModel()
+          if (!isAfterRandModel) {
+            this.showMessage('我的新衣服好看嘛？', 4000)
+          }
+        }).catch(function (err) {
+          console.log(err)
+        })
+      },
+      showMessage(msg = '', timeout = 6000) {
+        if (this.messageTimer) {
+          clearTimeout(this.messageTimer)
+          this.messageTimer = null
+        } else {
+          this.tipShow = true
+        }
+        this.tipText = msg
+        this.messageTimer = setTimeout(() => {
+          this.tipShow = false
+          this.messageTimer = null
+        }, timeout)
+      },
+      takePhoto() {
+        this.showMessage('照好了嘛，留个纪念吖~')
+        window.Live2D.captureName = 'photo.png'
+        window.Live2D.captureFrame = true
+      },
+      reset () {
+        location.reload()
+      },
+      showHitokoto() {
+        const url = 'https://api.xygeng.cn/one'
+        axios.get(url, { params: { date: new Date().getTime() } }).then((res) => {
+          const result = res.data || {}
+          if (result.code === 200) {
+            const { content } = result.data
+            this.showMessage(content)
+          }
+        }).catch(function (err) {
+          console.log(err)
+        })
+      },
+      openHomePage() {
+        open(this.homePage)
+      },
+      close() {
+        // this.mainShow = false
+        ipcRenderer.send('close-win')
+      },
+      loadEvent() {
+        for (const event in this.tips) {
+          for (const obj of this.tips[event]) {
+            const {selector, texts} = obj
+            const dom = selector === 'document' ? document : document.querySelector(selector)
+            if (dom == null) continue
 
-          dom.addEventListener(event, () => {
-            const msg = texts[Math.floor(Math.random() * texts.length)]
-            this.showMessage(msg, 2000)
-          })
+            dom.addEventListener(event, () => {
+              const msg = texts[Math.floor(Math.random() * texts.length)]
+              this.showMessage(msg, 2000)
+            })
+          }
         }
       }
     }
   }
-}
 </script>
 
 <style scoped>
-/* live2d */
-.vue-live2d {
-  transform: translateY(0);
-  transition: transform .3s ease-in-out;
-}
-.vue-live2d-on-left:hover {
-  transform: translateX(21px);
-}
-.vue-live2d-on-right:hover {
-  transform: translateX(-21px);
-}
-/* live2d-tip */
-.vue-live2d-tip {
-  position: absolute;
-  width: 100%;
-  min-height: 3rem;
-  line-height: 1.5rem;
-  margin-top: -20px;
-  padding: 5px 10px;
-  font-size: .9rem;
-  word-break: break-all;
-  text-overflow: ellipsis;
-  border: 1px solid rgba(224, 186, 140, 0.62);
-  border-radius: 12px;
-  background-color: rgba(236, 217, 188, 0.5);
-  box-shadow: 0 3px 15px 2px rgba(191, 158, 118, 0.2);
-  animation: shake 50s ease-in-out 5s infinite;
-}
-/* live2d-main */
-.vue-live2d-main {
-  cursor: grab;
-  cursor: -webkit-grab;
-  cursor: -o-grab;
-  cursor: -ms-grab;
-}
-/* live2d-tool */
-.vue-live2d-tool {
-  position: absolute;
-  width: 30px;
-  bottom: 10px;
-  color: #5b6c7d;
-  text-align: center;
-  cursor: pointer;
-}
-.vue-live2d-tool-on-left {
-  left: -18px;
-}
-.vue-live2d-tool-on-right {
-  right: -18px;
-}
-.vue-live2d-tool span {
-  display: block;
-  line-height: 30px;
-}
-.vue-live2d-tool span:hover {
-  color: #0684bd;
-}
-/* live2d-toggle */
-.vue-live2d-toggle {
-  width: 1.5rem;
-  position: absolute;
-  bottom: 1rem;
-  padding: .3rem 0;
-  writing-mode: vertical-lr;
-  color: #fff;
-  background-color: #fa0;
-  font-size: 1rem;
-  cursor: pointer;
-}
-.vue-live2d-toggle-on-left {
-  left: 0;
-  border-radius: 0 .5rem .5rem 0;
-}
-.vue-live2d-toggle-on-right {
-  right: 0;
-  border-radius: .5rem 0 0 .5rem;
-}
-.vue-live2d-toggle:hover {
-  width: 1.7rem;
-}
-@keyframes shake {
-  2% {
-    transform: translate(0.5px, -1.5px) rotate(-0.5deg);
+  /* live2d */
+  .vue-live2d {
+    transform: translateY(0);
+    transition: transform .3s ease-in-out;
   }
-  4% {
-    transform: translate(0.5px, 1.5px) rotate(1.5deg);
+
+  .vue-live2d-on-left:hover {
+    transform: translateX(21px);
   }
-  6% {
-    transform: translate(1.5px, 1.5px) rotate(1.5deg);
+
+  .vue-live2d-on-right:hover {
+    transform: translateX(-21px);
   }
-  8% {
-    transform: translate(2.5px, 1.5px) rotate(0.5deg);
+
+  /* live2d-tip */
+  .vue-live2d-tip {
+    position: absolute;
+    width: 100%;
+    min-height: 3rem;
+    line-height: 1.5rem;
+    margin-top: -20px;
+    padding: 5px 10px;
+    font-size: .9rem;
+    word-break: break-all;
+    text-overflow: ellipsis;
+    border: 1px solid rgba(224, 186, 140, 0.62);
+    border-radius: 12px;
+    background-color: rgba(236, 217, 188, 0.5);
+    box-shadow: 0 3px 15px 2px rgba(191, 158, 118, 0.2);
+    animation: shake 50s ease-in-out 5s infinite;
   }
-  10% {
-    transform: translate(0.5px, 2.5px) rotate(0.5deg);
+
+  /* live2d-main */
+  .vue-live2d-main {
+    cursor: grab;
+    cursor: -webkit-grab;
+    cursor: -o-grab;
+    cursor: -ms-grab;
   }
-  12% {
-    transform: translate(1.5px, 1.5px) rotate(0.5deg);
+
+  /* live2d-tool */
+  .vue-live2d-tool {
+    position: absolute;
+    width: 30px;
+    bottom: 10px;
+    color: #5b6c7d;
+    text-align: center;
+    cursor: pointer;
   }
-  14% {
-    transform: translate(0.5px, 0.5px) rotate(0.5deg);
+
+  .vue-live2d-tool-on-left {
+    left: -18px;
   }
-  16% {
-    transform: translate(-1.5px, -0.5px) rotate(1.5deg);
+
+  .vue-live2d-tool-on-right {
+    right: -18px;
   }
-  18% {
-    transform: translate(0.5px, 0.5px) rotate(1.5deg);
+
+  .vue-live2d-tool span {
+    display: block;
+    line-height: 30px;
   }
-  20% {
-    transform: translate(2.5px, 2.5px) rotate(1.5deg);
+
+  .vue-live2d-tool span:hover {
+    color: #0684bd;
   }
-  22% {
-    transform: translate(0.5px, -1.5px) rotate(1.5deg);
+
+  /* live2d-toggle */
+  .vue-live2d-toggle {
+    width: 1.5rem;
+    position: absolute;
+    bottom: 1rem;
+    padding: .3rem 0;
+    writing-mode: vertical-lr;
+    color: #fff;
+    background-color: #fa0;
+    font-size: 1rem;
+    cursor: pointer;
   }
-  24% {
-    transform: translate(-1.5px, 1.5px) rotate(-0.5deg);
+
+  .vue-live2d-toggle-on-left {
+    left: 0;
+    border-radius: 0 .5rem .5rem 0;
   }
-  26% {
-    transform: translate(1.5px, 0.5px) rotate(1.5deg);
+
+  .vue-live2d-toggle-on-right {
+    right: 0;
+    border-radius: .5rem 0 0 .5rem;
   }
-  28% {
-    transform: translate(-0.5px, -0.5px) rotate(-0.5deg);
+
+  .vue-live2d-toggle:hover {
+    width: 1.7rem;
   }
-  30% {
-    transform: translate(1.5px, -0.5px) rotate(-0.5deg);
+
+  @keyframes shake {
+    2% {
+      transform: translate(0.5px, -1.5px) rotate(-0.5deg);
+    }
+    4% {
+      transform: translate(0.5px, 1.5px) rotate(1.5deg);
+    }
+    6% {
+      transform: translate(1.5px, 1.5px) rotate(1.5deg);
+    }
+    8% {
+      transform: translate(2.5px, 1.5px) rotate(0.5deg);
+    }
+    10% {
+      transform: translate(0.5px, 2.5px) rotate(0.5deg);
+    }
+    12% {
+      transform: translate(1.5px, 1.5px) rotate(0.5deg);
+    }
+    14% {
+      transform: translate(0.5px, 0.5px) rotate(0.5deg);
+    }
+    16% {
+      transform: translate(-1.5px, -0.5px) rotate(1.5deg);
+    }
+    18% {
+      transform: translate(0.5px, 0.5px) rotate(1.5deg);
+    }
+    20% {
+      transform: translate(2.5px, 2.5px) rotate(1.5deg);
+    }
+    22% {
+      transform: translate(0.5px, -1.5px) rotate(1.5deg);
+    }
+    24% {
+      transform: translate(-1.5px, 1.5px) rotate(-0.5deg);
+    }
+    26% {
+      transform: translate(1.5px, 0.5px) rotate(1.5deg);
+    }
+    28% {
+      transform: translate(-0.5px, -0.5px) rotate(-0.5deg);
+    }
+    30% {
+      transform: translate(1.5px, -0.5px) rotate(-0.5deg);
+    }
+    32% {
+      transform: translate(2.5px, -1.5px) rotate(1.5deg);
+    }
+    34% {
+      transform: translate(2.5px, 2.5px) rotate(-0.5deg);
+    }
+    36% {
+      transform: translate(0.5px, -1.5px) rotate(0.5deg);
+    }
+    38% {
+      transform: translate(2.5px, -0.5px) rotate(-0.5deg);
+    }
+    40% {
+      transform: translate(-0.5px, 2.5px) rotate(0.5deg);
+    }
+    42% {
+      transform: translate(-1.5px, 2.5px) rotate(0.5deg);
+    }
+    44% {
+      transform: translate(-1.5px, 1.5px) rotate(0.5deg);
+    }
+    46% {
+      transform: translate(1.5px, -0.5px) rotate(-0.5deg);
+    }
+    48% {
+      transform: translate(2.5px, -0.5px) rotate(0.5deg);
+    }
+    50% {
+      transform: translate(-1.5px, 1.5px) rotate(0.5deg);
+    }
+    52% {
+      transform: translate(-0.5px, 1.5px) rotate(0.5deg);
+    }
+    54% {
+      transform: translate(-1.5px, 1.5px) rotate(0.5deg);
+    }
+    56% {
+      transform: translate(0.5px, 2.5px) rotate(1.5deg);
+    }
+    58% {
+      transform: translate(2.5px, 2.5px) rotate(0.5deg);
+    }
+    60% {
+      transform: translate(2.5px, -1.5px) rotate(1.5deg);
+    }
+    62% {
+      transform: translate(-1.5px, 0.5px) rotate(1.5deg);
+    }
+    64% {
+      transform: translate(-1.5px, 1.5px) rotate(1.5deg);
+    }
+    66% {
+      transform: translate(0.5px, 2.5px) rotate(1.5deg);
+    }
+    68% {
+      transform: translate(2.5px, -1.5px) rotate(1.5deg);
+    }
+    70% {
+      transform: translate(2.5px, 2.5px) rotate(0.5deg);
+    }
+    72% {
+      transform: translate(-0.5px, -1.5px) rotate(1.5deg);
+    }
+    74% {
+      transform: translate(-1.5px, 2.5px) rotate(1.5deg);
+    }
+    76% {
+      transform: translate(-1.5px, 2.5px) rotate(1.5deg);
+    }
+    78% {
+      transform: translate(-1.5px, 2.5px) rotate(0.5deg);
+    }
+    80% {
+      transform: translate(-1.5px, 0.5px) rotate(-0.5deg);
+    }
+    82% {
+      transform: translate(-1.5px, 0.5px) rotate(-0.5deg);
+    }
+    84% {
+      transform: translate(-0.5px, 0.5px) rotate(1.5deg);
+    }
+    86% {
+      transform: translate(2.5px, 1.5px) rotate(0.5deg);
+    }
+    88% {
+      transform: translate(-1.5px, 0.5px) rotate(1.5deg);
+    }
+    90% {
+      transform: translate(-1.5px, -0.5px) rotate(-0.5deg);
+    }
+    92% {
+      transform: translate(-1.5px, -1.5px) rotate(1.5deg);
+    }
+    94% {
+      transform: translate(0.5px, 0.5px) rotate(-0.5deg);
+    }
+    96% {
+      transform: translate(2.5px, -0.5px) rotate(-0.5deg);
+    }
+    98% {
+      transform: translate(-1.5px, -1.5px) rotate(-0.5deg);
+    }
+    0%, 100% {
+      transform: translate(0, 0) rotate(0deg);
+    }
   }
-  32% {
-    transform: translate(2.5px, -1.5px) rotate(1.5deg);
+  .icon-reset{
+    width: 22px;
+    height: 22px;
+    background: url("../../assets/icon/reset.png") center center no-repeat;
+    background-size: 100%;
   }
-  34% {
-    transform: translate(2.5px, 2.5px) rotate(-0.5deg);
-  }
-  36% {
-    transform: translate(0.5px, -1.5px) rotate(0.5deg);
-  }
-  38% {
-    transform: translate(2.5px, -0.5px) rotate(-0.5deg);
-  }
-  40% {
-    transform: translate(-0.5px, 2.5px) rotate(0.5deg);
-  }
-  42% {
-    transform: translate(-1.5px, 2.5px) rotate(0.5deg);
-  }
-  44% {
-    transform: translate(-1.5px, 1.5px) rotate(0.5deg);
-  }
-  46% {
-    transform: translate(1.5px, -0.5px) rotate(-0.5deg);
-  }
-  48% {
-    transform: translate(2.5px, -0.5px) rotate(0.5deg);
-  }
-  50% {
-    transform: translate(-1.5px, 1.5px) rotate(0.5deg);
-  }
-  52% {
-    transform: translate(-0.5px, 1.5px) rotate(0.5deg);
-  }
-  54% {
-    transform: translate(-1.5px, 1.5px) rotate(0.5deg);
-  }
-  56% {
-    transform: translate(0.5px, 2.5px) rotate(1.5deg);
-  }
-  58% {
-    transform: translate(2.5px, 2.5px) rotate(0.5deg);
-  }
-  60% {
-    transform: translate(2.5px, -1.5px) rotate(1.5deg);
-  }
-  62% {
-    transform: translate(-1.5px, 0.5px) rotate(1.5deg);
-  }
-  64% {
-    transform: translate(-1.5px, 1.5px) rotate(1.5deg);
-  }
-  66% {
-    transform: translate(0.5px, 2.5px) rotate(1.5deg);
-  }
-  68% {
-    transform: translate(2.5px, -1.5px) rotate(1.5deg);
-  }
-  70% {
-    transform: translate(2.5px, 2.5px) rotate(0.5deg);
-  }
-  72% {
-    transform: translate(-0.5px, -1.5px) rotate(1.5deg);
-  }
-  74% {
-    transform: translate(-1.5px, 2.5px) rotate(1.5deg);
-  }
-  76% {
-    transform: translate(-1.5px, 2.5px) rotate(1.5deg);
-  }
-  78% {
-    transform: translate(-1.5px, 2.5px) rotate(0.5deg);
-  }
-  80% {
-    transform: translate(-1.5px, 0.5px) rotate(-0.5deg);
-  }
-  82% {
-    transform: translate(-1.5px, 0.5px) rotate(-0.5deg);
-  }
-  84% {
-    transform: translate(-0.5px, 0.5px) rotate(1.5deg);
-  }
-  86% {
-    transform: translate(2.5px, 1.5px) rotate(0.5deg);
-  }
-  88% {
-    transform: translate(-1.5px, 0.5px) rotate(1.5deg);
-  }
-  90% {
-    transform: translate(-1.5px, -0.5px) rotate(-0.5deg);
-  }
-  92% {
-    transform: translate(-1.5px, -1.5px) rotate(1.5deg);
-  }
-  94% {
-    transform: translate(0.5px, 0.5px) rotate(-0.5deg);
-  }
-  96% {
-    transform: translate(2.5px, -0.5px) rotate(-0.5deg);
-  }
-  98% {
-    transform: translate(-1.5px, -1.5px) rotate(-0.5deg);
-  }
-  0%, 100% {
-    transform: translate(0, 0) rotate(0deg);
-  }
-}
 </style>

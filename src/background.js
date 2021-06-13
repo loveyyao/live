@@ -1,22 +1,54 @@
 'use strict'
 
-import { app, protocol, BrowserWindow } from 'electron'
+import {
+  app,
+  protocol,
+  BrowserWindow,
+  screen,
+  Menu,
+  Tray,
+  ipcMain
+} from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer'
 const isDevelopment = process.env.NODE_ENV !== 'production'
+const path = require('path')
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true } }
 ])
-
+let appTray = null
 async function createWindow() {
   // Create the browser window.
+  const trayIcon = path.join(__dirname, '../build/tray.png')
+  appTray = new Tray(trayIcon)
+  const trayMenuTemplate = [
+    {
+      label: '退出',
+      click: function () {
+        app.quit()
+      }
+    }
+  ]
+  //图标的上下文菜单
+  const contextMenu = Menu.buildFromTemplate(trayMenuTemplate)
+  //设置此托盘图标的悬停提示内容
+  appTray.setToolTip('看板娘')
+  //设置此图标的上下文菜单
+  appTray.setContextMenu(contextMenu)
+  const winW = screen.getPrimaryDisplay().workAreaSize.width
+  const winH = screen.getPrimaryDisplay().workAreaSize.height
   const win = new BrowserWindow({
     width: 250,
     height: 250,
     frame: false,
+    x: winW - 250,
+    y: winH - 250,
     transparent: true,
+    skipTaskbar: false,
+    title: '看板娘',
+    icon: trayIcon,
     webPreferences: {
 
       // Use pluginOptions.nodeIntegration, leave this alone
@@ -24,6 +56,15 @@ async function createWindow() {
       nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
       contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION
     }
+  })
+  // app.dock.setIcon(trayIcon)
+  appTray.on('click', function () {
+    win.isVisible() ? win.hide() : win.show();
+  })
+  win.setAlwaysOnTop(true)
+
+  ipcMain.on('close-win', function () {
+    win.hide()
   })
 
   if (process.env.WEBPACK_DEV_SERVER_URL) {
