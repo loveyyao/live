@@ -86,10 +86,10 @@
             name: 'icon-reset',
             click: this.reset
           },
-          {
-            name: 'fa-comment',
-            click: this.showHitokoto
-          },
+          // {
+          //   name: 'fa-comment',
+          //   click: this.showHitokoto
+          // },
           {
             name: 'fa-user-circle',
             click: this.loadRandModel
@@ -120,6 +120,7 @@
       this.setDirection()
       this.$nextTick(function () {
         this.loadEvent()
+        this.showHitokoto()
       })
     },
     computed: {
@@ -232,10 +233,16 @@
           const result = res.data || {}
           if (result.code === 200) {
             const { content } = result.data
-            this.showMessage(content)
+            if (content.length < 30) {
+              this.showMessage(content)
+            }
           }
         }).catch(function (err) {
           console.log(err)
+        }).finally(() => {
+          setTimeout(() => {
+            this.showHitokoto()
+          }, 1000 * 6 * 3)
         })
       },
       openHomePage() {
