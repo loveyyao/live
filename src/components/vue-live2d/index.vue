@@ -242,7 +242,7 @@
         }).finally(() => {
           setTimeout(() => {
             this.showHitokoto()
-          }, 1000 * 6 * 3)
+          }, 1000 * 60 * 3)
         })
       },
       openHomePage() {
